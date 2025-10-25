@@ -1,0 +1,6 @@
+# This is a comment
+# Skippy can be used for sending a sequence of SCPI commands to instrument in *txt, *csv formats.
+# Required argument: --address
+# Optional arguments: --delay --post-operation-commands
+*COUNT?
+SAVE SCREENSHOT
