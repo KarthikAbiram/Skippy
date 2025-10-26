@@ -1,10 +1,12 @@
-import pyvisa
-import fire
+import time
+import re
 import os
 import io
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Tuple
 import csv
+import pyvisa
+import fire
 
 @dataclass
 class SkippyCommand:
@@ -18,6 +20,10 @@ class Skippy():
     def __init__(self):
         self.variables = {}
         self.commands = []
+        self.rm = pyvisa.ResourceManager()
+        self.rm = pyvisa.ResourceManager("@sim")
+        print(self.rm.list_resources())
+        self.instrument = None
 
     def run(self, path=r"docs/skippy_csv_syntax.csv", **kwargs):
         # print(path, kwargs)
@@ -27,14 +33,11 @@ class Skippy():
         if file_ext == '.txt':
             # Convert text file to csv format
             # Call execute
-            pass
+            raise ValueError
         elif file_ext == '.csv':
-            # Parse csv file
-            self._parse_csv(path)
-            print(self.variables)
-            print(self.commands)
-            # Call execute
-            pass
+            # Parse csv file and execute commands
+            variables, commands = self._parse_csv(path)
+            self._execute(variables, commands)
         else:
             raise ValueError
 
@@ -83,6 +86,57 @@ class Skippy():
                 self.commands.append(cmd)
 
             return self.variables, self.commands
+
+    def _execute(self, variables: dict, commands: List[SkippyCommand]):
+        address = variables.get("Address", "")
+        termination = variables.get("Termination", "\n")
+
+        # Connect to instrument
+        self.instrument = self.rm.open_resource(address)
+
+        for i, cmd in enumerate(commands, start=1):
+            # Substitute variables in command text
+            full_command = self._substitute_vars(cmd.command or "")
+
+            # Automatically add termination if not already included
+            if termination and not full_command.endswith(termination.strip()):
+                full_command = full_command + termination.strip()
+
+            print(f"[{i}] {cmd.operation} → {full_command!r}")
+
+            op = cmd.operation.lower()
+
+            # Execute operation
+            if op == "write":
+                self.instrument.write(full_command)
+            elif op == "query":
+                response = self.instrument.query(full_command)
+                print(f"  Response: {response.strip()}")
+                # Handle "Update" special operation
+                if cmd.special_op.lower() == "update" and cmd.special_op_arg.startswith("$"):
+                    var_name = cmd.special_op_arg[1:]
+                    self.variables[var_name] = response.strip()
+            elif op == "delay":
+                self._handle_delay(cmd.command)
+            elif op == "comment":
+                print(f"  # {cmd.command}")
+            else:
+                print(f"⚠️ Unknown operation '{cmd.operation}' — skipping.")
+
+    def _substitute_vars(self, text: str) -> str:
+        """Replace $Variable names in a command string with actual values."""
+        pattern = re.compile(r"\$(\w+)")
+        return pattern.sub(lambda m: self.variables.get(m.group(1), m.group(0)), text)
+    
+    def _handle_delay(self, delay_str: str):
+        """Supports delays like 1s or 500ms."""
+        delay_str = (delay_str or "").strip().lower()
+        if delay_str.endswith("ms"):
+            time.sleep(float(delay_str[:-2]) / 1000.0)
+        elif delay_str.endswith("s"):
+            time.sleep(float(delay_str[:-1]))
+        elif delay_str:
+            time.sleep(float(delay_str))
 
 def main():
     print("Hello from skippy!")

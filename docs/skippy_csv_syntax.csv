@@ -1,7 +1,7 @@
 Variable,Value,Comment,,
 About,Skippy can be used for sending a sequence of SCPI commands to instrument.,Any variable in this section can be used in the below table by prefixing with a $ sign. You can add any new variables to this section,,
 Termination,\n,Termination character to be added for each command,,
-Address,MSO58,Default value for scope address. This can be overridden by passing arguments with Skippy,,
+Address,TCPIP0::localhost:3333::inst0::INSTR,Default value for scope address. This can be overridden by passing arguments with Skippy,,
 Operation,Auto,,,
 PostOperationCommands,"*OPC?;*ERC?",,,
 PostOperationDelayInSeconds,1,,,
