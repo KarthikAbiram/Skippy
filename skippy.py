@@ -21,7 +21,7 @@ class Skippy():
         self.variables = {}
         self.commands = []
         self.rm = pyvisa.ResourceManager()
-        self.rm = pyvisa.ResourceManager("@sim")
+        # self.rm = pyvisa.ResourceManager("@sim")
         print(self.rm.list_resources())
         self.instrument = None
 
@@ -95,33 +95,52 @@ class Skippy():
         self.instrument = self.rm.open_resource(address)
 
         for i, cmd in enumerate(commands, start=1):
-            # Substitute variables in command text
-            full_command = self._substitute_vars(cmd.command or "")
 
             # Automatically add termination if not already included
-            if termination and not full_command.endswith(termination.strip()):
-                full_command = full_command + termination.strip()
+            # Not needed here as its included by pyvisa
+            # if termination and not full_command.endswith(termination.strip()):
+            #     full_command = full_command + termination.strip()
 
-            print(f"[{i}] {cmd.operation} → {full_command!r}")
-
-            op = cmd.operation.lower()
-
-            # Execute operation
-            if op == "write":
-                self.instrument.write(full_command)
-            elif op == "query":
-                response = self.instrument.query(full_command)
-                print(f"  Response: {response.strip()}")
-                # Handle "Update" special operation
-                if cmd.special_op.lower() == "update" and cmd.special_op_arg.startswith("$"):
-                    var_name = cmd.special_op_arg[1:]
-                    self.variables[var_name] = response.strip()
-            elif op == "delay":
-                self._handle_delay(cmd.command)
-            elif op == "comment":
-                print(f"  # {cmd.command}")
+            if cmd.special_op == "Iterate":
+                iter_var_name = cmd.special_op_arg[1:] # Excluding the prefixed $ sign
+                iter_count = int(self.variables[iter_var_name])
             else:
-                print(f"⚠️ Unknown operation '{cmd.operation}' — skipping.")
+                iter_count = 1
+
+            for X in range(1,iter_count+1):
+                self.variables["X"]=str(X)
+                # Substitute variables in command text
+                full_command = self._substitute_vars(cmd.command or "")
+                
+                print(f"[{i}] {cmd.operation} → {full_command!r}")
+                subcmds = full_command.split(";")
+
+                for subcmd in subcmds:
+                    op = cmd.operation.lower()
+
+                    if op == "auto":
+                        # If ends with ?, then query. Else, write.
+                        if subcmd.strip().endswith("?"):
+                            op = "query"
+                        else:
+                            op = "write"
+
+                    # Execute operation
+                    if op == "write":
+                        self.instrument.write(subcmd)
+                    elif op == "query":
+                        response = self.instrument.query(subcmd)
+                        print(f"  Response: {response.strip()}")
+                        # Handle "Update" special operation
+                        if cmd.special_op.lower() == "update" and cmd.special_op_arg.startswith("$"):
+                            var_name = cmd.special_op_arg[1:]
+                            self.variables[var_name] = response.strip()
+                    elif op == "delay":
+                        self._handle_delay(cmd.command)
+                    elif op == "comment":
+                        print(f"  # {cmd.command}")
+                    else:
+                        print(f"⚠️ Unknown operation '{cmd.operation}' — skipping.")
 
     def _substitute_vars(self, text: str) -> str:
         """Replace $Variable names in a command string with actual values."""

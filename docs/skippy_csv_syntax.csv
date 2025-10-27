@@ -5,10 +5,11 @@ Address,TCPIP0::localhost:3333::inst0::INSTR,Default value for scope address. Th
 Operation,Auto,,,
 PostOperationCommands,"*OPC?;*ERC?",,,
 PostOperationDelayInSeconds,1,,,
+Count,5,,,
 ,,,,
 Address,Operation,Command,SpecialOp,SpecialOpArg
 $Address,Comment,This is a comment,,
-$Address,Write,,,
-$Address,Query,*COUNT?,Update,$Count
+$Address,Query,*IDN?,,
 $Address,Delay,1s,,
-$Address,Write,"SWITCH X;SAVE SCREENSHOT X.png",Iterate,$Count
+$Address,Write,"SWITCH $X;SAVE SCREENSHOT $X.png",Iterate,$Count
+$Address,Query,*ACQCOUNT?,Update,$Count
